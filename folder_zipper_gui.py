@@ -28,7 +28,7 @@ def format_size(size_bytes):
     else:
         return f"{size_bytes / (1024 ** 3):.2f} GB"
 
-def folder_report_and_zip(folder_path):
+def folder_report_and_zip(folder_path, delete_after=True):
     report_file = os.path.join(folder_path, "folder_report.txt")
     zip_path = folder_path.rstrip(os.sep) + ".zip"
 
@@ -120,26 +120,48 @@ def folder_report_and_zip(folder_path):
 
                 print(f"  🧵 Zipped ({zipped_files}/{total_files}): {file}")
 
-    print("\n🗑️ Deleting original folder...")
-    shutil.rmtree(folder_path)
+    if delete_after:
+        print("\n🗑️ Deleting original folder...")
+        shutil.rmtree(folder_path)
+        print("❌ Original folder deleted")
+    else:
+        print("\n📂 Original folder kept (not deleted).")
 
     print("\n✅ DONE!")
     print(f"📁 ZIP created: {zip_path}")
-    print("❌ Original folder deleted")
 
 def select_folder_gui():
     root = tk.Tk()
-    root.withdraw()  # Hide main window
+    root.title("Folder Zipper")
+    root.resizable(False, False)
 
-    folder_selected = filedialog.askdirectory(
-        title="Select folder to report, zip, and delete"
-    )
+    keep_folder_var = tk.BooleanVar(value=False)
 
-    if folder_selected:
-        print(f"📂 Selected folder: {folder_selected}")
-        folder_report_and_zip(folder_selected)
-    else:
-        print("❌ No folder selected. Exiting.")
+    def on_select():
+        folder_selected = filedialog.askdirectory(
+            title="Select folder to report and zip"
+        )
+        if folder_selected:
+            root.destroy()
+            print(f"📂 Selected folder: {folder_selected}")
+            folder_report_and_zip(folder_selected, delete_after=not keep_folder_var.get())
+        else:
+            print("❌ No folder selected. Exiting.")
+            root.destroy()
+
+    frame = tk.Frame(root, padx=20, pady=20)
+    frame.pack()
+
+    tk.Checkbutton(
+        frame,
+        text="Keep original folder (don't delete after zipping)",
+        variable=keep_folder_var,
+        anchor="w",
+    ).pack(fill="x", pady=(0, 15))
+
+    tk.Button(frame, text="Select folder", command=on_select, width=20).pack()
+
+    root.mainloop()
 
 # ---- RUN ----
 if __name__ == "__main__":

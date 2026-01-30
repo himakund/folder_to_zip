@@ -3,7 +3,7 @@ import zipfile
 import shutil
 from datetime import datetime
 
-def folder_report_and_zip(folder_path):
+def folder_report_and_zip(folder_path, delete_after=True):
     # Output files
     report_file = os.path.join(folder_path, "folder_report.txt")
     zip_path = folder_path.rstrip(os.sep) + ".zip"
@@ -38,14 +38,19 @@ def folder_report_and_zip(folder_path):
                 arcname = os.path.relpath(file_path, folder_path)
                 zipf.write(file_path, arcname)
 
-    # 3. Delete original folder
-    shutil.rmtree(folder_path)
+    # 3. Delete original folder (optional)
+    if delete_after:
+        shutil.rmtree(folder_path)
+        print("Original folder deleted.")
+    else:
+        print("Original folder kept (not deleted).")
 
     print("Done!")
     print(f"Report created and zipped to: {zip_path}")
-    print("Original folder deleted.")
 
 # ---- RUN HERE ----
 if __name__ == "__main__":
     folder = input("Enter full path to folder: ").strip()
-    folder_report_and_zip(folder)
+    delete_prompt = input("Delete original folder after zipping? (y/n) [y]: ").strip().lower()
+    delete_after = delete_prompt != "n" and delete_prompt != "no"
+    folder_report_and_zip(folder, delete_after=delete_after)
