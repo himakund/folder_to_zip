@@ -59,12 +59,27 @@ def folder_report_and_zip(folder_path):
                 file_entries.append((file_path, None, None, None, str(e)))
                 print(f"  ⚠ Skip (error): {name}")
 
+    # Remove duplicate files (keep first copy per MD5)
+    paths_to_delete = set()
+    duplicates = {md5: paths for md5, paths in md5_to_paths.items() if len(paths) > 1}
+    for md5, paths in duplicates.items():
+        kept, removed = paths[0], paths[1:]
+        paths_to_delete.update(removed)
+        for p in removed:
+            try:
+                os.remove(p)
+                print(f"  🗑 Removed duplicate: {os.path.basename(p)}")
+            except Exception as e:
+                print(f"  ⚠ Could not remove {p}: {e}")
+
     with open(report_file, "w", encoding="utf-8") as report:
         report.write(f"Folder report for: {folder_path}\n")
         report.write("=" * 60 + "\n\n")
 
         for entry in file_entries:
             file_path, size, modified, md5, err = entry
+            if file_path in paths_to_delete:
+                continue
             if err is not None:
                 report.write(f"Could not read {file_path}: {err}\n\n")
             else:
@@ -75,21 +90,23 @@ def folder_report_and_zip(folder_path):
                     f"MD5: {md5 if md5 else '(unable to compute)'}\n\n"
                 )
 
-        # Duplicates section
-        duplicates = {md5: paths for md5, paths in md5_to_paths.items() if len(paths) > 1}
+        # Duplicates section (kept vs removed)
         if duplicates:
             report.write("=" * 60 + "\n")
-            report.write("DUPLICATES (same MD5 checksum)\n")
+            report.write("DUPLICATES (same MD5) — kept 1 copy, removed rest\n")
             report.write("=" * 60 + "\n\n")
             for md5, paths in duplicates.items():
+                kept, removed = paths[0], paths[1:]
                 report.write(f"MD5: {md5}\n")
-                for p in paths:
-                    report.write(f"  - {p}\n")
+                report.write(f"  Kept:   {kept}\n")
+                for p in removed:
+                    report.write(f"  Removed: {p}\n")
                 report.write("\n")
         else:
             report.write("=" * 60 + "\n")
             report.write("No duplicate files (by MD5) found.\n")
 
+    total_files -= len(paths_to_delete)
     print(f"\n📦 Zipping {total_files} files...")
 
     zipped_files = 0
