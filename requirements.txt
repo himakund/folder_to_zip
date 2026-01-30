@@ -1,0 +1,2 @@
+# Folder Zipper - no external dependencies
+# Uses only Python standard library: os, zipfile, shutil, hashlib, tkinter
