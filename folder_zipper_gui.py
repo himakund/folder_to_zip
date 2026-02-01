@@ -6,6 +6,7 @@ import csv
 from datetime import datetime
 import tkinter as tk
 from tkinter import filedialog
+import tkinter.ttk as ttk
 
 def file_md5(file_path, chunk_size=8192):
     """Compute MD5 checksum of a file (chunked for large files)."""
@@ -181,10 +182,38 @@ def folder_report_and_zip(folder_path, delete_after=True, compression_level=6):
     print("\n✅ DONE!")
     print(f"📁 ZIP created: {zip_path}")
 
+# ---- UI theme (modern light theme)
+COLORS = {
+    "bg": "#f0f4f8",
+    "card": "#ffffff",
+    "card_border": "#e2e8f0",
+    "accent": "#2563eb",
+    "accent_hover": "#1d4ed8",
+    "text": "#1e293b",
+    "text_muted": "#64748b",
+    "success": "#059669",
+}
+FONTS = {
+    "title": ("Segoe UI", 18, "bold"),
+    "section": ("Segoe UI", 10, "bold"),
+    "body": ("Segoe UI", 10),
+    "hint": ("Segoe UI", 9),
+}
+
+
 def select_folder_gui():
     root = tk.Tk()
     root.title("Folder Zipper")
-    root.resizable(False, False)
+    root.resizable(True, True)
+    root.configure(bg=COLORS["bg"])
+
+    # Center window and set size (roomy for button, slider, and padding)
+    root.update_idletasks()
+    w, h = 520, 340
+    x = (root.winfo_screenwidth() // 2) - (w // 2)
+    y = (root.winfo_screenheight() // 2) - (h // 2)
+    root.geometry(f"{w}x{h}+{x}+{y}")
+    root.minsize(460, 300)
 
     keep_folder_var = tk.BooleanVar(value=False)
     compression_var = tk.IntVar(value=6)
@@ -197,51 +226,131 @@ def select_folder_gui():
             root.destroy()
             print(f"📂 Selected folder: {folder_selected}")
             folder_report_and_zip(
-                folder_selected, 
+                folder_selected,
                 delete_after=not keep_folder_var.get(),
-                compression_level=compression_var.get()
+                compression_level=int(compression_var.get()),
             )
         else:
             print("❌ No folder selected. Exiting.")
             root.destroy()
 
-    frame = tk.Frame(root, padx=20, pady=20)
-    frame.pack()
+    # Main container with padding
+    main = tk.Frame(root, bg=COLORS["bg"], padx=28, pady=24)
+    main.pack(fill="both", expand=True)
 
-    tk.Checkbutton(
-        frame,
-        text="Keep original folder (don't delete after zipping)",
+    # ---- Header ----
+    header = tk.Frame(main, bg=COLORS["bg"])
+    header.pack(fill="x", pady=(0, 20))
+    tk.Label(
+        header,
+        text="📦 Folder Zipper",
+        font=FONTS["title"],
+        fg=COLORS["text"],
+        bg=COLORS["bg"],
+    ).pack(anchor="w")
+    tk.Label(
+        header,
+        text="Report, deduplicate & zip a folder",
+        font=FONTS["hint"],
+        fg=COLORS["text_muted"],
+        bg=COLORS["bg"],
+    ).pack(anchor="w")
+
+    # ---- Options card ----
+    card = tk.Frame(main, bg=COLORS["card"], relief="flat", bd=0)
+    card.pack(fill="x", pady=(0, 20))
+    card_inner = tk.Frame(card, bg=COLORS["card"], padx=20, pady=16)
+    card_inner.pack(fill="x")
+    # Subtle border effect
+    card_border = tk.Frame(card, bg=COLORS["card_border"], height=1)
+    card_border.pack(fill="x", side="bottom")
+
+    # Keep folder option
+    keep_row = tk.Frame(card_inner, bg=COLORS["card"])
+    keep_row.pack(fill="x", pady=(0, 14))
+    cb = tk.Checkbutton(
+        keep_row,
+        text="Keep original folder after zipping",
         variable=keep_folder_var,
         anchor="w",
-    ).pack(fill="x", pady=(0, 10))
+        font=FONTS["body"],
+        fg=COLORS["text"],
+        bg=COLORS["card"],
+        activebackground=COLORS["card"],
+        activeforeground=COLORS["text"],
+        selectcolor=COLORS["card"],
+        highlightthickness=0,
+    )
+    cb.pack(side="left")
 
-    # Compression level selector
-    compression_frame = tk.Frame(frame)
-    compression_frame.pack(fill="x", pady=(0, 15))
-    
+    # Compression section
+    comp_label_row = tk.Frame(card_inner, bg=COLORS["card"])
+    comp_label_row.pack(fill="x", pady=(4, 6))
     tk.Label(
-        compression_frame,
-        text="Compression level:",
-        anchor="w"
-    ).pack(side="left", padx=(0, 10))
-    
-    compression_scale = tk.Scale(
-        compression_frame,
+        comp_label_row,
+        text="Compression level",
+        font=FONTS["section"],
+        fg=COLORS["text"],
+        bg=COLORS["card"],
+    ).pack(side="left")
+    tk.Label(
+        comp_label_row,
+        text="0 = none · 9 = max",
+        font=FONTS["hint"],
+        fg=COLORS["text_muted"],
+        bg=COLORS["card"],
+    ).pack(side="right")
+
+    comp_scale_frame = tk.Frame(card_inner, bg=COLORS["card"])
+    comp_scale_frame.pack(fill="x")
+    scale = ttk.Scale(
+        comp_scale_frame,
         from_=0,
         to=9,
         orient="horizontal",
         variable=compression_var,
-        length=200
+        length=380,
     )
-    compression_scale.pack(side="left")
-    
-    tk.Label(
-        compression_frame,
-        text="(0=none, 9=max)",
-        fg="gray"
-    ).pack(side="left", padx=(10, 0))
+    scale.pack(side="left", fill="x", expand=True, padx=(0, 12))
+    comp_value = tk.Label(
+        comp_scale_frame,
+        text="6",
+        font=FONTS["body"],
+        fg=COLORS["accent"],
+        bg=COLORS["card"],
+        width=2,
+    )
+    comp_value.pack(side="left")
 
-    tk.Button(frame, text="Select folder", command=on_select, width=20).pack()
+    def update_comp_label(*args):
+        try:
+            comp_value.config(text=str(int(compression_var.get())))
+        except (ValueError, tk.TclError):
+            pass
+
+    compression_var.trace_add("write", update_comp_label)
+
+    # ---- Primary button ----
+    btn_frame = tk.Frame(main, bg=COLORS["bg"])
+    btn_frame.pack(fill="x")
+    btn = tk.Button(
+        btn_frame,
+        text="  Select folder to zip  ",
+        command=on_select,
+        font=FONTS["body"],
+        fg="white",
+        bg=COLORS["accent"],
+        activeforeground="white",
+        activebackground=COLORS["accent_hover"],
+        relief="flat",
+        bd=0,
+        padx=20,
+        pady=10,
+        cursor="hand2",
+    )
+    btn.pack()
+    btn.bind("<Enter>", lambda e: btn.config(bg=COLORS["accent_hover"]))
+    btn.bind("<Leave>", lambda e: btn.config(bg=COLORS["accent"]))
 
     root.mainloop()
 
