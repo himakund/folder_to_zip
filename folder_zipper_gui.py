@@ -2,6 +2,7 @@ import os
 import zipfile
 import shutil
 import hashlib
+import csv
 from datetime import datetime
 import tkinter as tk
 from tkinter import filedialog
@@ -28,11 +29,13 @@ def format_size(size_bytes):
     else:
         return f"{size_bytes / (1024 ** 3):.2f} GB"
 
-def folder_report_and_zip(folder_path, delete_after=True):
-    report_file = os.path.join(folder_path, "folder_report.txt")
+def folder_report_and_zip(folder_path, delete_after=True, compression_level=6):
+    report_file_txt = os.path.join(folder_path, "folder_report.txt")
+    report_file_csv = os.path.join(folder_path, "folder_report.csv")
     zip_path = folder_path.rstrip(os.sep) + ".zip"
 
-    print("\n📄 Creating folder report (with MD5, duplicate check)...")
+    print(f"\n📄 Creating folder report (with MD5, duplicate check)...")
+    print(f"🗜️ Compression level: {compression_level} (0=none, 9=max)")
 
     total_files = 0
     file_entries = []   # (path, size, mtime, md5 or None)
@@ -72,7 +75,8 @@ def folder_report_and_zip(folder_path, delete_after=True):
             except Exception as e:
                 print(f"  ⚠ Could not remove {p}: {e}")
 
-    with open(report_file, "w", encoding="utf-8") as report:
+    # Generate TXT report
+    with open(report_file_txt, "w", encoding="utf-8") as report:
         report.write(f"Folder report for: {folder_path}\n")
         report.write("=" * 60 + "\n\n")
 
@@ -106,11 +110,58 @@ def folder_report_and_zip(folder_path, delete_after=True):
             report.write("=" * 60 + "\n")
             report.write("No duplicate files (by MD5) found.\n")
 
+    # Generate CSV report
+    with open(report_file_csv, "w", encoding="utf-8", newline='') as csvfile:
+        csv_writer = csv.writer(csvfile)
+        
+        # Write header
+        csv_writer.writerow([
+            "File Path", 
+            "File Name", 
+            "Size (Bytes)", 
+            "Size (Formatted)", 
+            "Modified Date", 
+            "MD5 Checksum", 
+            "Status",
+            "Error"
+        ])
+        
+        # Write file entries
+        for entry in file_entries:
+            file_path, size, modified, md5, err = entry
+            status = "Removed (Duplicate)" if file_path in paths_to_delete else "Kept"
+            
+            csv_writer.writerow([
+                file_path,
+                os.path.basename(file_path),
+                size if size is not None else "",
+                format_size(size) if size is not None else "",
+                modified.strftime("%Y-%m-%d %H:%M:%S") if modified else "",
+                md5 if md5 else "",
+                status,
+                err if err else ""
+            ])
+        
+        # Write duplicates summary section
+        if duplicates:
+            csv_writer.writerow([])  # Empty row
+            csv_writer.writerow(["DUPLICATE FILES SUMMARY"])
+            csv_writer.writerow(["MD5 Checksum", "Status", "File Path"])
+            
+            for md5, paths in duplicates.items():
+                kept, removed = paths[0], paths[1:]
+                csv_writer.writerow([md5, "Kept", kept])
+                for p in removed:
+                    csv_writer.writerow([md5, "Removed", p])
+
+    print(f"  📄 TXT report saved: folder_report.txt")
+    print(f"  📊 CSV report saved: folder_report.csv")
+
     total_files -= len(paths_to_delete)
     print(f"\n📦 Zipping {total_files} files...")
 
     zipped_files = 0
-    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED, compresslevel=compression_level) as zipf:
         for root, dirs, files in os.walk(folder_path):
             for file in files:
                 file_path = os.path.join(root, file)
@@ -136,6 +187,7 @@ def select_folder_gui():
     root.resizable(False, False)
 
     keep_folder_var = tk.BooleanVar(value=False)
+    compression_var = tk.IntVar(value=6)
 
     def on_select():
         folder_selected = filedialog.askdirectory(
@@ -144,7 +196,11 @@ def select_folder_gui():
         if folder_selected:
             root.destroy()
             print(f"📂 Selected folder: {folder_selected}")
-            folder_report_and_zip(folder_selected, delete_after=not keep_folder_var.get())
+            folder_report_and_zip(
+                folder_selected, 
+                delete_after=not keep_folder_var.get(),
+                compression_level=compression_var.get()
+            )
         else:
             print("❌ No folder selected. Exiting.")
             root.destroy()
@@ -157,7 +213,33 @@ def select_folder_gui():
         text="Keep original folder (don't delete after zipping)",
         variable=keep_folder_var,
         anchor="w",
-    ).pack(fill="x", pady=(0, 15))
+    ).pack(fill="x", pady=(0, 10))
+
+    # Compression level selector
+    compression_frame = tk.Frame(frame)
+    compression_frame.pack(fill="x", pady=(0, 15))
+    
+    tk.Label(
+        compression_frame,
+        text="Compression level:",
+        anchor="w"
+    ).pack(side="left", padx=(0, 10))
+    
+    compression_scale = tk.Scale(
+        compression_frame,
+        from_=0,
+        to=9,
+        orient="horizontal",
+        variable=compression_var,
+        length=200
+    )
+    compression_scale.pack(side="left")
+    
+    tk.Label(
+        compression_frame,
+        text="(0=none, 9=max)",
+        fg="gray"
+    ).pack(side="left", padx=(10, 0))
 
     tk.Button(frame, text="Select folder", command=on_select, width=20).pack()
 
